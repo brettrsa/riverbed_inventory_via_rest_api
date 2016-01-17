@@ -1,0 +1,39 @@
+#!/bin/bash
+#
+# Shell script to generate Riverbed inventory
+#
+# Start
+
+source=/etc/hosts
+tmp=/tmp/inventory-rvb-tmp
+edit=/tmp/inventory-rvb-edit
+format=/usr/local/bin/inventory-rvb-awk
+
+clear
+echo '--------------------------------------------------------'
+echo 'Grabbing data from the Riverbed devices via the API.....'
+echo '--------------------------------------------------------'
+
+for i in `egrep 'rb1' $source | awk '{print $2}'`; do
+
+   # Check if host is up
+   check_if_up=$( ping -c1 $i | egrep 'received' | awk '{print $4}' )
+
+   if [ $check_if_up -eq 1 ]; then
+      curl -s https://$i:9443/api/common/1.0/info -k >> $tmp
+   fi
+
+done
+
+for host in `egrep 'device_name' $tmp | awk '{print $2}' | sed 's/"//g' | sed 's/,//g'`; do
+
+    model=`egrep -A4 $host $tmp | egrep 'model' | awk '{print $2}' | sed 's/"//g' | sed 's/,//g'`
+    serial=`egrep  -A4 $host $tmp | egrep 'serial' | awk '{print $2}' | sed 's/"//g' | sed 's/,//g'`
+    code=`egrep -A4 $host $tmp | egrep 'version' | awk '{print $2}' | sed 's/"//g' | sed 's/,//g'`
+    echo $host $model $serial $code | awk 'NF' >> $edit
+
+done;
+
+$format $edit
+rm $tmp
+rm $edit
